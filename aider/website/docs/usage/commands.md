@@ -5,10 +5,11 @@ description: Control aider with in-chat commands like /add, /model, etc.
 ---
 
 # In-chat commands
+
 {: .no_toc }
 
 - TOC
-{:toc}
+  {:toc}
 
 ## Slash commands
 
@@ -78,11 +79,13 @@ or CONTROL-R to search your message history.
 
 ## Interrupting with CONTROL-C
 
-It's always safe to use Control-C to interrupt aider if it isn't providing a useful response. The partial response remains in the conversation, so you can refer to it when you reply to the LLM with more information or direction.
+It's always safe to use Control-C to interrupt aider if it isn't providing a useful response. The partial response
+remains in the conversation, so you can refer to it when you reply to the LLM with more information or direction.
 
 ## Keybindings
 
-The interactive prompt is built with [prompt-toolkit](https://github.com/prompt-toolkit/python-prompt-toolkit) which provides emacs and vi keybindings. 
+The interactive prompt is built with [prompt-toolkit](https://github.com/prompt-toolkit/python-prompt-toolkit) which
+provides emacs and vi keybindings.
 
 ### Emacs
 
@@ -102,7 +105,6 @@ The interactive prompt is built with [prompt-toolkit](https://github.com/prompt-
 - `Ctrl-R` : Reverse search in command history.
 - `Ctrl-X Ctrl-E` : Open the current input in an external editor
 - `Ctrl-Y` : Paste (yank) text that was previously cut.
-
 
 ### Vi
 
