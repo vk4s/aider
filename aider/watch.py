@@ -67,7 +67,9 @@ class FileWatcher:
 
     # Compiled regex pattern for AI comments
     ai_comment_pattern = re.compile(
-        r"(?:#|//|--|;+) *(ai\b.*|ai\b.*|.*\bai[?!]?) *$", re.IGNORECASE
+        r"(?:#|//|--|;+)\s*(ai\b.*|ai\b.*|.*\bai[?!]?)\s*$"  # Line comment styles
+        r"|(?:\{#\s*(ai\b.*|ai\b.*|.*\bai[?!]?)\s*#\})\s*$",  # DBT/Jinja block comment style
+        re.IGNORECASE,
     )
 
     def __init__(self, coder, gitignores=None, verbose=False, analytics=None, root=None):
@@ -180,7 +182,6 @@ class FileWatcher:
 
     def process_changes(self):
         """Get any detected file changes"""
-
         has_action = None
         added = False
         for fname in self.changed_files:
@@ -204,6 +205,8 @@ class FileWatcher:
                 self.io.tool_output(
                     "End your comment with AI! to request changes or AI? to ask questions"
                 )
+            # Ensure stale changes do not cause future unintended triggers
+            self.changed_files.clear()
             return ""
 
         if self.analytics:
@@ -220,7 +223,6 @@ class FileWatcher:
             line_nums, comments, _action = self.get_ai_comments(fname)
             if not line_nums:
                 continue
-
             code = self.io.read_text(fname)
             if not code:
                 continue
@@ -252,6 +254,8 @@ class FileWatcher:
                 for ln, comment in zip(line_nums, comments):
                     res += f"  Line {ln}: {comment}\n"
 
+        # Clear processed changes to avoid re-triggering on subsequent saves
+        self.changed_files.clear()
         return res
 
     def get_ai_comments(self, filepath):
@@ -270,6 +274,8 @@ class FileWatcher:
                     line_nums.append(i)
                     comments.append(comment)
                     comment = comment.lower()
+                    # Strip DBT/Jinja block comment braces if present
+                    comment = re.sub(r"^\{#\s*|\s*#\}\s*$", "", comment)
                     comment = comment.lstrip("/#-;")  # Added semicolon for Lisp comments
                     comment = comment.strip()
                     if comment.startswith("ai!") or comment.endswith("ai!"):
