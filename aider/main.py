@@ -946,6 +946,8 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         original_read_only_fnames=read_only_fnames,
     )
 
+    load_plugins(commands, git_root, io, args.verbose)
+
     summarizer = ChatSummary(
         [main_model.weak_model, main_model],
         args.max_chat_history_tokens or main_model.max_chat_history_tokens,

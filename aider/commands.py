@@ -40,7 +40,7 @@ class Commands:
     scraper = None
 
     def clone(self):
-        return Commands(
+        new_commands = Commands(
             self.io,
             None,
             voice_language=self.voice_language,
@@ -51,6 +51,8 @@ class Commands:
             editor=self.editor,
             original_read_only_fnames=self.original_read_only_fnames,
         )
+        new_commands.custom_commands = self.custom_commands
+        return new_commands
 
     def __init__(
         self,
@@ -70,6 +72,7 @@ class Commands:
         self.coder = coder
         self.parser = parser
         self.args = args
+        self.custom_commands = dict()
         self.verbose = verbose
 
         self.verify_ssl = verify_ssl
@@ -275,6 +278,17 @@ class Commands:
             return
         return sorted(fun())
 
+    def register_command(self, name, function, description):
+        if name.startswith("/"):
+            name = name[1:]
+        name = name.replace("-", "_")
+        if name in self.custom_commands:
+            self.io.tool_warning(f"Plugin command /{name} is being overridden.")
+        self.custom_commands[name] = {
+            "function": function,
+            "description": description,
+        }
+
     def get_commands(self):
         commands = []
         for attr in dir(self):
@@ -284,20 +298,33 @@ class Commands:
             cmd = cmd.replace("_", "-")
             commands.append("/" + cmd)
 
+        commands.extend(["/" + name.replace("_", "-") for name in self.custom_commands.keys()])
+
         return commands
 
     def do_run(self, cmd_name, args):
+        cmd_name_hyphenated = cmd_name
         cmd_name = cmd_name.replace("-", "_")
         cmd_method_name = f"cmd_{cmd_name}"
         cmd_method = getattr(self, cmd_method_name, None)
-        if not cmd_method:
-            self.io.tool_output(f"Error: Command {cmd_name} not found.")
+
+        if cmd_method:
+            try:
+                return cmd_method(args)
+            except ANY_GIT_ERROR as err:
+                self.io.tool_error(f"Unable to complete {cmd_name_hyphenated}: {err}")
             return
 
-        try:
-            return cmd_method(args)
-        except ANY_GIT_ERROR as err:
-            self.io.tool_error(f"Unable to complete {cmd_name}: {err}")
+        if cmd_name in self.custom_commands:
+            command_info = self.custom_commands[cmd_name]
+            try:
+                self.coder.event(f"command_plugin_{cmd_name}")
+                return command_info["function"](self.coder, args)
+            except Exception as e:
+                self.io.tool_error(f"Error executing plugin command /{cmd_name_hyphenated}: {e}")
+            return
+
+        self.io.tool_output(f"Error: Command {cmd_name_hyphenated} not found.")
 
     def matching_commands(self, inp):
         words = inp.strip().split()
@@ -1112,14 +1139,23 @@ class Commands:
         pad = max(len(cmd) for cmd in commands)
         pad = "{cmd:" + str(pad) + "}"
         for cmd in commands:
-            cmd_method_name = f"cmd_{cmd[1:]}".replace("-", "_")
+            cmd_name_with_slash = cmd
+            cmd_name = cmd[1:]
+            cmd_name_underscores = cmd_name.replace("-", "_")
+
+            cmd_method_name = f"cmd_{cmd_name_underscores}"
             cmd_method = getattr(self, cmd_method_name, None)
-            cmd = pad.format(cmd=cmd)
+            cmd_str = pad.format(cmd=cmd_name_with_slash)
             if cmd_method:
                 description = cmd_method.__doc__
-                self.io.tool_output(f"{cmd} {description}")
+                self.io.tool_output(f"{cmd_str} {description}")
+            elif cmd_name_underscores in self.custom_commands:
+                description = self.custom_commands[cmd_name_underscores].get(
+                    "description", "No description available."
+                )
+                self.io.tool_output(f"{cmd_str} {description} (from plugin)")
             else:
-                self.io.tool_output(f"{cmd} No description available.")
+                self.io.tool_output(f"{cmd_str} No description available.")
         self.io.tool_output()
         self.io.tool_output("Use `/help <question>` to ask questions about how to use aider.")
 
