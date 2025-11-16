@@ -71,8 +71,8 @@ class FileWatcher:
 
     # Compiled regex pattern for AI comments
     ai_comment_pattern = re.compile(
-        r"(?:#|//|--|;+)\s*(ai\b.*|ai\b.*|.*\bai[?!@]?)\s*$"  # Line comment styles
-        r"|(?:\{#\s*(ai\b.*|ai\b.*|.*\bai[?!@]?)\s*#\})\s*$",  # DBT/Jinja block comment style
+        r"(?:#|//|--|;+)\s*(ai\b.*|.*\bai[?!@]?)\s*$"  # Line comment styles
+        r"|(?:\{#\s*(ai\b.*|.*\bai[?!@]?)\s*#\})\s*$",  # DBT/Jinja block comment style
         re.IGNORECASE,
     )
 
