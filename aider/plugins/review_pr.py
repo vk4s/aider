@@ -1,5 +1,6 @@
 import shutil
 import subprocess
+from pathlib import Path
 
 
 def check_gh_installed(coder):
@@ -62,11 +63,30 @@ def cmd_review_pr(coder, args):
     diff = get_pr_diff(coder, pr_identifier)
 
     if diff:
+        # Check for a repo-specific checklist
+        checklist_path = Path(coder.root) / ".aider" / "pr_review_checklist.md"
+        if checklist_path.exists():
+            try:
+                review_instructions = checklist_path.read_text()
+                coder.io.tool_output(
+                    "Using custom review checklist from .aider/pr_review_checklist.md"
+                )
+            except Exception as e:
+                coder.io.tool_error(f"Error reading review checklist: {e}")
+                review_instructions = (
+                    "Look for potential bugs, suggest improvements, and check for adherence to"
+                    " coding standards."
+                )
+        else:
+            review_instructions = (
+                "Look for potential bugs, suggest improvements, and check for adherence to coding"
+                " standards."
+            )
+
         coder.io.tool_output("Diff fetched successfully. Asking for review...")
         prompt = (
             f"Please review the following pull request diff for PR '{pr_identifier}'.\n"
-            "Look for potential bugs, suggest improvements, and check for adherence to coding"
-            " standards.\n\n"
+            f"{review_instructions}\n\n"
             f"```diff\n{diff}\n```\n"
         )
         return prompt
