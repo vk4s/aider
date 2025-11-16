@@ -36,6 +36,7 @@ from aider.repo import ANY_GIT_ERROR, GitRepo
 from aider.report import report_uncaught_exceptions
 from aider.versioncheck import check_version, install_from_main_branch, install_upgrade
 from aider.watch import FileWatcher
+import importlib.util
 
 from .dump import dump  # noqa: F401
 
@@ -228,6 +229,50 @@ def write_streamlit_credentials():
             f.write(empty_creds)
     else:
         print("Streamlit credentials already exist.")
+
+
+def load_plugins(commands, git_root, io, verbose):
+    plugin_dirs = []
+
+    # User-level plugins
+    home_plugin_dir = Path.home() / ".aider" / "plugins"
+    if home_plugin_dir.is_dir():
+        plugin_dirs.append(home_plugin_dir)
+
+    # Repo-level plugins
+    if git_root:
+        repo_plugin_dir = Path(git_root) / ".aider" / "plugins"
+        if repo_plugin_dir.is_dir():
+            plugin_dirs.append(repo_plugin_dir)
+
+    if not plugin_dirs:
+        return
+
+    if verbose:
+        io.tool_output("Loading plugins from:")
+
+    for pdir in plugin_dirs:
+        if verbose:
+            io.tool_output(f"- {pdir}")
+        for pfile in sorted(pdir.glob("*.py")):
+            if pfile.name.startswith("_"):
+                continue
+            try:
+                spec = importlib.util.spec_from_file_location(pfile.stem, pfile)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+
+                if hasattr(module, "register_aider_plugins"):
+                    if verbose:
+                        io.tool_output(f"  - Registering plugins from {pfile.name}")
+                    module.register_aider_plugins(commands)
+                elif verbose:
+                    io.tool_warning(
+                        f"  - Skipping {pfile.name}, does not have a register_aider_plugins"
+                        " function."
+                    )
+            except Exception as e:
+                io.tool_error(f"Error loading plugin {pfile.name}: {e}")
 
 
 def launch_gui(args):
