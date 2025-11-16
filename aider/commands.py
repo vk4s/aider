@@ -322,6 +322,10 @@ class Commands:
                 return command_info["function"](self.coder, args)
             except Exception as e:
                 self.io.tool_error(f"Error executing plugin command /{cmd_name_hyphenated}: {e}")
+                if self.verbose:
+                    import traceback
+
+                    self.io.tool_error(traceback.format_exc())
             return
 
         self.io.tool_output(f"Error: Command {cmd_name_hyphenated} not found.")

@@ -270,6 +270,10 @@ def load_plugins(commands, git_root, io, verbose):
                 continue
             try:
                 spec = importlib.util.spec_from_file_location(pfile.stem, pfile)
+                if not spec or not spec.loader:
+                    if verbose:
+                        io.tool_warning(f"  - Skipping {pfile.name}, could not create module spec.")
+                    continue
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
 
