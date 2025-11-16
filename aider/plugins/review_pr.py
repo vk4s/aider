@@ -64,6 +64,7 @@ def cmd_review_pr(coder, args):
 
     if diff:
         # Check for a repo-specific checklist
+        review_instructions = None
         checklist_path = Path(coder.root) / ".aider" / "pr_review_checklist.md"
         if checklist_path.exists():
             try:
@@ -73,11 +74,8 @@ def cmd_review_pr(coder, args):
                 )
             except Exception as e:
                 coder.io.tool_error(f"Error reading review checklist: {e}")
-                review_instructions = (
-                    "Look for potential bugs, suggest improvements, and check for adherence to"
-                    " coding standards."
-                )
-        else:
+
+        if not review_instructions:
             review_instructions = (
                 "Look for potential bugs, suggest improvements, and check for adherence to coding"
                 " standards."
