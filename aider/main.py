@@ -13,6 +13,9 @@ try:
 except ImportError:
     git = None
 
+import importlib.resources
+import importlib.util
+
 import importlib_resources
 import shtab
 from dotenv import load_dotenv
@@ -36,8 +39,6 @@ from aider.repo import ANY_GIT_ERROR, GitRepo
 from aider.report import report_uncaught_exceptions
 from aider.versioncheck import check_version, install_from_main_branch, install_upgrade
 from aider.watch import FileWatcher
-import importlib.resources
-import importlib.util
 
 from .dump import dump  # noqa: F401
 
