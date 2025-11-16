@@ -36,6 +36,7 @@ from aider.repo import ANY_GIT_ERROR, GitRepo
 from aider.report import report_uncaught_exceptions
 from aider.versioncheck import check_version, install_from_main_branch, install_upgrade
 from aider.watch import FileWatcher
+import importlib.resources
 import importlib.util
 
 from .dump import dump  # noqa: F401
@@ -233,6 +234,15 @@ def write_streamlit_credentials():
 
 def load_plugins(commands, git_root, io, verbose):
     plugin_dirs = []
+
+    # Built-in plugins
+    try:
+        builtin_plugin_dir = importlib.resources.files("aider") / "plugins"
+        if builtin_plugin_dir.is_dir():
+            plugin_dirs.append(builtin_plugin_dir)
+    except (ModuleNotFoundError, AttributeError):
+        # Fails on py<3.9, or if plugins dir is not a package
+        pass
 
     # User-level plugins
     home_plugin_dir = Path.home() / ".aider" / "plugins"
