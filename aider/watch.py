@@ -9,7 +9,11 @@ from pathspec.patterns import GitWildMatchPattern
 from watchfiles import watch
 
 from aider.dump import dump  # noqa
-from aider.watch_prompts import watch_ask_prompt, watch_code_prompt
+from aider.watch_prompts import (
+    watch_architect_prompt,
+    watch_ask_prompt,
+    watch_code_prompt,
+)
 
 
 def load_gitignores(gitignore_paths: list[Path]) -> Optional[PathSpec]:
@@ -67,7 +71,9 @@ class FileWatcher:
 
     # Compiled regex pattern for AI comments
     ai_comment_pattern = re.compile(
-        r"(?:#|//|--|;+) *(ai\b.*|ai\b.*|.*\bai[?!]?) *$", re.IGNORECASE
+        r"(?:#|//|--|;+)\s*(ai\b.*|ai\b.*|.*\bai[?!@]?)\s*$"  # Line comment styles
+        r"|(?:\{#\s*(ai\b.*|ai\b.*|.*\bai[?!@]?)\s*#\})\s*$",  # DBT/Jinja block comment style
+        re.IGNORECASE,
     )
 
     def __init__(self, coder, gitignores=None, verbose=False, analytics=None, root=None):
@@ -180,12 +186,11 @@ class FileWatcher:
 
     def process_changes(self):
         """Get any detected file changes"""
-
         has_action = None
         added = False
         for fname in self.changed_files:
             _, _, action = self.get_ai_comments(fname)
-            if action in ("!", "?"):
+            if action in ("!", "?", "@"):
                 has_action = action
 
             if fname in self.coder.abs_fnames:
@@ -201,9 +206,10 @@ class FileWatcher:
 
         if not has_action:
             if added:
-                self.io.tool_output(
-                    "End your comment with AI! to request changes or AI? to ask questions"
-                )
+                self.io.tool_output("""End your comment with AI! to request changes,
+                AI@ for architect mode, or AI? to ask questions""")
+            # Ensure stale changes do not cause future unintended triggers
+            self.changed_files.clear()
             return ""
 
         if self.analytics:
@@ -214,13 +220,14 @@ class FileWatcher:
             res = watch_code_prompt
         elif has_action == "?":
             res = watch_ask_prompt
+        elif has_action == "@":
+            res = watch_architect_prompt
 
         # Refresh all AI comments from tracked files
         for fname in self.coder.abs_fnames:
             line_nums, comments, _action = self.get_ai_comments(fname)
             if not line_nums:
                 continue
-
             code = self.io.read_text(fname)
             if not code:
                 continue
@@ -252,13 +259,15 @@ class FileWatcher:
                 for ln, comment in zip(line_nums, comments):
                     res += f"  Line {ln}: {comment}\n"
 
+        # Clear processed changes to avoid re-triggering on subsequent saves
+        self.changed_files.clear()
         return res
 
     def get_ai_comments(self, filepath):
         """Extract AI comment line numbers, comments and action status from a file"""
         line_nums = []
         comments = []
-        has_action = None  # None, "!" or "?"
+        has_action = None  # None, "!", "?" or "@"
         content = self.io.read_text(filepath, silent=True)
         if not content:
             return None, None, None
@@ -270,12 +279,16 @@ class FileWatcher:
                     line_nums.append(i)
                     comments.append(comment)
                     comment = comment.lower()
+                    # Strip DBT/Jinja block comment braces if present
+                    comment = re.sub(r"^\{#\s*|\s*#\}\s*$", "", comment)
                     comment = comment.lstrip("/#-;")  # Added semicolon for Lisp comments
                     comment = comment.strip()
                     if comment.startswith("ai!") or comment.endswith("ai!"):
                         has_action = "!"
                     elif comment.startswith("ai?") or comment.endswith("ai?"):
                         has_action = "?"
+                    elif comment.startswith("ai@") or comment.endswith("ai@"):
+                        has_action = "@"
         if not line_nums:
             return None, None, None
         return line_nums, comments, has_action

@@ -25,6 +25,7 @@ from aider.repo import ANY_GIT_ERROR
 from aider.run_cmd import run_cmd
 from aider.scrape import Scraper, install_playwright
 from aider.utils import is_image_file, run_fzf
+
 from .dump import dump  # noqa: F401
 
 
@@ -1709,7 +1710,8 @@ Just show me the edits I need to make.
             self.io.tool_error(f"An unexpected error occurred while copying to clipboard: {str(e)}")
 
     def cmd_session(self, args):
-        """Manage chat sessions. Subcommands: list, save <name>, load <name>, delete <name>, view <name>."""
+        """Manage chat sessions.
+        Subcommands: list, save <name>, load <name>, delete <name>, view <name>."""
         parts = args.strip().split()
         if not parts:
             self.io.tool_error(
