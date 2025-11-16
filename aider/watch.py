@@ -10,9 +10,9 @@ from watchfiles import watch
 
 from aider.dump import dump  # noqa
 from aider.watch_prompts import (
+    watch_architect_prompt,
     watch_ask_prompt,
     watch_code_prompt,
-    watch_architect_prompt,
 )
 
 
@@ -206,10 +206,7 @@ class FileWatcher:
 
         if not has_action:
             if added:
-                self.io.tool_output(
-                    """End your comment with AI! to request changes, 
-                    AI@ for architect mode, or AI? to ask questions"""
-                )
+                self.io.tool_output("""End your comment with AI! to request changes, AI@ for architect mode, or AI? to ask questions""")
             # Ensure stale changes do not cause future unintended triggers
             self.changed_files.clear()
             return ""

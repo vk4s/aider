@@ -197,22 +197,29 @@ def test_no_retrigger_without_action():
 
     from aider.watch_prompts import watch_code_prompt
 
-    # First: a file with AI! triggers execution
-    with tempfile.NamedTemporaryFile("w+", suffix=".sql", delete=False) as tf1:
-        tf1.write("-- ai! implement logic\n")
-        tf1.flush()
-        p1 = str(Path(tf1.name))
+    p1, p2 = None, None
+    try:
+        # First: a file with AI! triggers execution
+        with tempfile.NamedTemporaryFile("w+", suffix=".sql", delete=False) as tf1:
+            tf1.write("-- ai! implement logic\n")
+            tf1.flush()
+            p1 = str(Path(tf1.name))
 
-    watcher.changed_files = {p1}
-    cmd1 = watcher.process_changes()
-    assert cmd1.strip().startswith(watch_code_prompt.strip().splitlines()[0])
+        watcher.changed_files = {p1}
+        cmd1 = watcher.process_changes()
+        assert cmd1.strip().startswith(watch_code_prompt.strip().splitlines()[0])
 
-    # Second: a different file with only ai (no action) should NOT retrigger
-    with tempfile.NamedTemporaryFile("w+", suffix=".sql", delete=False) as tf2:
-        tf2.write("-- ai add notes\n")
-        tf2.flush()
-        p2 = str(Path(tf2.name))
+        # Second: a different file with only ai (no action) should NOT retrigger
+        with tempfile.NamedTemporaryFile("w+", suffix=".sql", delete=False) as tf2:
+            tf2.write("-- ai add notes\n")
+            tf2.flush()
+            p2 = str(Path(tf2.name))
 
-    watcher.changed_files = {p2}
-    cmd2 = watcher.process_changes()
-    assert cmd2 == ""
+        watcher.changed_files = {p2}
+        cmd2 = watcher.process_changes()
+        assert cmd2 == ""
+    finally:
+        if p1:
+            Path(p1).unlink()
+        if p2:
+            Path(p2).unlink()
