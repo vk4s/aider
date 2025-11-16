@@ -1710,7 +1710,8 @@ Just show me the edits I need to make.
             self.io.tool_error(f"An unexpected error occurred while copying to clipboard: {str(e)}")
 
     def cmd_session(self, args):
-        """Manage chat sessions. Subcommands: list, save <name>, load <name>, delete <name>, view <name>."""
+        """Manage chat sessions.
+        Subcommands: list, save <name>, load <name>, delete <name>, view <name>."""
         parts = args.strip().split()
         if not parts:
             self.io.tool_error(
