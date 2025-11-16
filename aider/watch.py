@@ -212,7 +212,8 @@ class FileWatcher:
         if not has_action:
             if added:
                 self.io.tool_output(
-                    "End your comment with AI! to request changes, AI@ for architect mode, or AI? to ask questions"
+                    "End your comment with AI! to request changes, \
+                        AI@ for architect mode, or AI? to ask questions"
                 )
             # Ensure stale changes do not cause future unintended triggers
             self.changed_files.clear()
