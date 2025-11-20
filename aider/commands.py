@@ -263,10 +263,29 @@ class Commands:
 
         # Parse arguments
         auto_add = False
-        query = args
-        if "--add" in args or " -a " in args or args.endswith(" -a"):
-            auto_add = True
-            query = args.replace("--add", "").replace(" -a", "").strip()
+        refresh = False
+        limit = 5
+
+        # Simple argument parsing
+        args_list = args.split()
+        query_parts = []
+
+        i = 0
+        while i < len(args_list):
+            arg = args_list[i]
+            if arg in ("--add", "-a"):
+                auto_add = True
+            elif arg in ("--refresh", "-r"):
+                refresh = True
+            elif arg in ("--limit", "-l"):
+                if i + 1 < len(args_list) and args_list[i + 1].isdigit():
+                    limit = int(args_list[i + 1])
+                    i += 1
+            else:
+                query_parts.append(arg)
+            i += 1
+
+        query = " ".join(query_parts)
 
         if not query.strip():
             self.io.tool_error("Please provide a query to discover relevant files.")
@@ -289,16 +308,16 @@ class Commands:
 
         if not self.discoverer.index:
             self.discoverer.load_or_create_index(all_files, git_root)
-        else:
+        elif refresh:
             self.discoverer.refresh_index(all_files, git_root)
 
-        results = self.discoverer.query(query, top_k=5)
+        results = self.discoverer.query(query, top_k=limit)
 
         if not results:
             self.io.tool_output("No relevant files found.")
             return
 
-        self.io.tool_output("Found relevant files:")
+        self.io.tool_output(f"Found {len(results)} relevant files:")
         found_files = []
         for i, res in enumerate(results, 1):
             score = res["score"]
