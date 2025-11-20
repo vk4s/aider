@@ -3,7 +3,7 @@ import shutil
 import warnings
 from pathlib import Path
 
-from aider import __version__, utils
+from aider import utils
 
 # Suppress warnings from llama_index
 warnings.simplefilter("ignore", category=FutureWarning)
@@ -41,8 +41,18 @@ class ContextDiscoverer:
             pip_install_cmd,
         )
 
-    def get_cache_dir(self):
-        return Path.home() / ".aider" / "caches" / ("context_discovery." + __version__)
+    def get_cache_dir(self, git_root):
+        if not git_root:
+            # Fallback for non-git usage, though less ideal
+            git_root = os.getcwd()
+
+        # Create a hash of the git root path to separate caches per repo
+        import hashlib
+
+        repo_hash = hashlib.md5(str(git_root).encode()).hexdigest()
+
+        # No version in path - preserve index across aider updates
+        return Path.home() / ".aider" / "caches" / "context_discovery" / repo_hash
 
     def load_or_create_index(self, fnames, git_root):
         from llama_index.core import (
@@ -53,7 +63,7 @@ class ContextDiscoverer:
         )
         from llama_index.core.node_parser import SentenceSplitter
 
-        dname = self.get_cache_dir()
+        dname = self.get_cache_dir(git_root)
 
         # Try to load existing index
         try:
