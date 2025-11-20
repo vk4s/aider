@@ -261,7 +261,14 @@ class Commands:
     def cmd_discover(self, args):
         "Discover relevant files using semantic search"
 
-        if not args.strip():
+        # Parse arguments
+        auto_add = False
+        query = args
+        if "--add" in args or " -a " in args or args.endswith(" -a"):
+            auto_add = True
+            query = args.replace("--add", "").replace(" -a", "").strip()
+
+        if not query.strip():
             self.io.tool_error("Please provide a query to discover relevant files.")
             return
 
@@ -285,20 +292,27 @@ class Commands:
         else:
             self.discoverer.refresh_index(all_files, git_root)
 
-        results = self.discoverer.query(args, top_k=5)
+        results = self.discoverer.query(query, top_k=5)
 
         if not results:
             self.io.tool_output("No relevant files found.")
             return
 
         self.io.tool_output("Found relevant files:")
+        found_files = []
         for i, res in enumerate(results, 1):
             score = res["score"]
             fname = res["file"]
             # snippet = res['text'][:100].replace('\n', ' ')
             self.io.tool_output(f"{i}. {fname} (Score: {score:.2f})")
+            found_files.append(fname)
 
-        self.io.tool_output("\nUse /add <filename> to add them to the chat.")
+        if auto_add:
+            self.io.tool_output("\nAuto-adding files to chat...")
+            for fname in found_files:
+                self.cmd_add(fname)
+        else:
+            self.io.tool_output("\nUse /add <filename> to add them to the chat.")
 
     def is_command(self, inp):
         return inp[0] in "/!"

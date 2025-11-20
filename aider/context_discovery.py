@@ -142,11 +142,72 @@ class ContextDiscoverer:
             self.index.delete_ref_doc(fname, delete_from_docstore=True)
 
         count = 0
+        if not files_to_index and git_root:
+            # Load .aiderignore patterns if present
+            ignore_patterns = []
+            ignore_file = Path(git_root) / ".aiderignore"
+            if ignore_file.exists():
+                try:
+                    ignore_patterns = [
+                        line.strip()
+                        for line in ignore_file.read_text().splitlines()
+                        if line.strip() and not line.startswith("#")
+                    ]
+                except Exception:
+                    pass
+
+            import fnmatch
+
+            for root, dirs, files in os.walk(git_root):
+                # Skip hidden dirs
+                dirs[:] = [d for d in dirs if not d.startswith(".")]
+
+                for file in files:
+                    fname = os.path.join(root, file)
+                    rel_fname = os.path.relpath(fname, git_root)
+
+                    # Check against ignore patterns
+                    if any(fnmatch.fnmatch(rel_fname, pat) for pat in ignore_patterns):
+                        continue
+
+                    # Skip common binary/large file extensions
+                    if file.endswith(
+                        (
+                            ".DS_Store",
+                            ".woff2",
+                            ".ico",
+                            ".png",
+                            ".jpg",
+                            ".jpeg",
+                            ".gif",
+                            ".pdf",
+                            ".zip",
+                            ".tar",
+                            ".gz",
+                        )
+                    ):
+                        continue
+
+                    # Skip files that are likely binary or too large
+                    try:
+                        if os.path.getsize(fname) > 1024 * 1024:  # Skip files larger than 1MB
+                            continue
+                    except OSError:
+                        continue
+
+                    files_to_index.append(fname)
+
         for fname in files_to_index:
             if not os.path.isfile(fname):
                 continue
 
             try:
+                # Check for binary content by reading first chunk
+                with open(fname, "rb") as f:
+                    chunk = f.read(1024)
+                    if b"\0" in chunk:
+                        continue
+
                 content = self.io.read_text(fname)
                 if not content:
                     continue
