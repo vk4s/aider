@@ -282,6 +282,8 @@ class Commands:
 
         if not self.discoverer.index:
             self.discoverer.load_or_create_index(all_files, git_root)
+        else:
+            self.discoverer.refresh_index(all_files, git_root)
 
         results = self.discoverer.query(args, top_k=5)
 

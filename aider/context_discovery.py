@@ -56,7 +56,6 @@ class ContextDiscoverer:
 
     def load_or_create_index(self, fnames, git_root):
         from llama_index.core import (
-            Document,
             StorageContext,
             VectorStoreIndex,
             load_index_from_storage,
@@ -72,43 +71,75 @@ class ContextDiscoverer:
                 self.index = load_index_from_storage(storage_context)
                 if self.verbose:
                     self.io.tool_output("Loaded context index from cache.")
-                return
         except (OSError, Exception):
             if self.verbose:
                 self.io.tool_output("Failed to load index from cache, recreating...")
             shutil.rmtree(dname, ignore_errors=True)
 
-        # Create new index
-        self.io.tool_output("Indexing codebase for context discovery... (this may take a while)")
+        # If no index loaded, create an empty one
+        if not self.index:
+            self.io.tool_output("Creating new context index...")
+            splitter = SentenceSplitter(
+                chunk_size=1024,
+                chunk_overlap=200,
+            )
+            self.index = VectorStoreIndex.from_documents([], transformations=[splitter])
 
-        documents = []
-        # Use SentenceSplitter to avoid tree_sitter_languages dependency
-        splitter = SentenceSplitter(
-            chunk_size=1024,
-            chunk_overlap=200,
+        # Refresh the index (incremental update)
+        self.refresh_index(fnames, git_root)
+
+    def refresh_index(self, fnames, git_root):
+        from llama_index.core import Document
+
+        if not fnames:
+            return
+
+        # Get existing docs info
+        # ref_doc_info maps doc_id (which we set to fname) to metadata
+        existing_docs = self.index.ref_doc_info if self.index.ref_doc_info else {}
+
+        # Identify changes
+        current_fnames = set(fnames)
+        existing_fnames = set(existing_docs.keys())
+
+        new_files = current_fnames - existing_fnames
+        deleted_files = existing_fnames - current_fnames
+        modified_files = []
+
+        for fname in current_fnames.intersection(existing_fnames):
+            if not os.path.isfile(fname):
+                continue
+
+            current_mtime = os.path.getmtime(fname)
+            # Check stored mtime
+            # ref_doc_info[fname] is a RefDocInfo object, accessing metadata attribute
+            doc_info = existing_docs[fname]
+            stored_mtime = doc_info.metadata.get("mtime", 0) if doc_info.metadata else 0
+
+            if current_mtime > stored_mtime:
+                modified_files.append(fname)
+
+        if not new_files and not deleted_files and not modified_files:
+            if self.verbose:
+                self.io.tool_output("Context index is up to date.")
+            return
+
+        self.io.tool_output(
+            f"Updating context index: {len(new_files)} new, {len(modified_files)} modified,"
+            f" {len(deleted_files)} deleted."
         )
 
-        # Filter files to index
-        files_to_index = []
-        if fnames:
-            files_to_index = fnames
-        elif git_root:
-            # If no specific files provided, walk the git repo
-            # This is a simplified approach; ideally we'd respect .gitignore
-            # For now, let's assume fnames are passed from the coder which handles gitignore
-            pass
+        # Process deletions
+        for fname in deleted_files:
+            self.index.delete_ref_doc(fname, delete_from_docstore=True)
 
-        # If fnames is empty (e.g. first run), we might need to find files.
-        # But usually aider is started with files or in a repo.
-        # Let's rely on what's passed or available.
+        # Process additions and updates
+        files_to_index = list(new_files) + modified_files
 
-        if not files_to_index and git_root:
-            for root, dirs, files in os.walk(git_root):
-                # Skip hidden dirs
-                dirs[:] = [d for d in dirs if not d.startswith(".")]
-                for file in files:
-                    if file.endswith((".py", ".md", ".txt", ".js", ".ts", ".html", ".css")):
-                        files_to_index.append(os.path.join(root, file))
+        # For modified files, we need to delete them first to avoid duplicates?
+        # insert() usually appends. delete_ref_doc handles cleanup of old nodes.
+        for fname in modified_files:
+            self.index.delete_ref_doc(fname, delete_from_docstore=True)
 
         count = 0
         for fname in files_to_index:
@@ -120,31 +151,29 @@ class ContextDiscoverer:
                 if not content:
                     continue
 
+                mtime = os.path.getmtime(fname)
                 doc = Document(
                     text=content,
+                    doc_id=fname,  # Use absolute path as ID for tracking
                     metadata=dict(
                         filename=fname,
                         relative_path=os.path.relpath(fname, git_root) if git_root else fname,
+                        mtime=mtime,
                     ),
                 )
-                documents.append(doc)
+                self.index.insert(doc)
                 count += 1
             except Exception as e:
                 if self.verbose:
                     self.io.tool_warning(f"Failed to index {fname}: {e}")
 
-        if not documents:
-            self.io.tool_warning("No documents found to index.")
-            return
-
-        self.index = VectorStoreIndex.from_documents(
-            documents, transformations=[splitter], show_progress=True
-        )
-
         # Persist
+        dname = self.get_cache_dir(git_root)
         dname.parent.mkdir(parents=True, exist_ok=True)
         self.index.storage_context.persist(str(dname))
-        self.io.tool_output(f"Indexed {count} files.")
+
+        if count > 0 or deleted_files:
+            self.io.tool_output("Index updated.")
 
     def query(self, query_text, top_k=5):
         if not self.index:
