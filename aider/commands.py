@@ -475,6 +475,106 @@ class Commands:
         self._clear_chat_history()
         self.io.tool_output("All files dropped and chat history cleared.")
 
+    def cmd_branch(self, args):
+        "Manage chat branches: /branch [name], /branch -d [name], or /branch to list"
+        args = args.strip()
+
+        # Subcommand handling
+        if " " in args:
+            cmd, rest = args.split(" ", 1)
+            rest = rest.strip()
+            if cmd == "list":
+                self.cmd_branch("")
+                return
+            elif cmd == "checkout":
+                self.cmd_checkout(rest)
+                return
+            elif cmd == "delete":
+                self.cmd_branch(f"-d {rest}")
+                return
+            elif cmd == "merge":
+                self.cmd_merge(rest)
+                return
+            elif cmd == "diff":
+                self.cmd_branch_diff(rest)
+                return
+
+        if not args or args == "list":
+            current = self.coder.get_current_branch()
+            self.io.tool_output(f"Current branch: {current}")
+            branches = self.coder.list_branches()
+            if branches:
+                self.io.tool_output("Branches:")
+                for b in branches:
+                    prefix = "* " if b == current else "  "
+                    self.io.tool_output(f"{prefix}{b}")
+            return
+
+        if args.startswith("-d "):
+            name = args[3:].strip()
+            if self.coder.delete_branch(name):
+                self.io.tool_output(f"Deleted branch: {name}")
+            else:
+                self.io.tool_error(f"Branch not found: {name}")
+            return
+
+        name = args
+        self.coder.save_branch(name)
+        self.io.tool_output(f"Created branch: {name}")
+
+    def cmd_checkout(self, args):
+        "Switch to a chat branch"
+        name = args.strip()
+        if not name:
+            self.io.tool_error("Please specify a branch name.")
+            return
+
+        if self.coder.checkout_branch(name):
+            self.io.tool_output(f"Switched to branch: {name}")
+        else:
+            self.io.tool_error(f"Branch not found: {name}")
+
+    def cmd_branch_diff(self, args):
+        "Show diff between current branch and another branch"
+        name = args.strip()
+        if not name:
+            self.io.tool_error("Please specify a branch name to diff against.")
+            return
+
+        diff = self.coder.branch_diff(name)
+        if diff is None:
+            self.io.tool_error(f"Could not diff against branch: {name}")
+            return
+
+        if not diff:
+            self.io.tool_output(f"No differences between current branch and {name}.")
+        else:
+            self.io.tool_output(diff)
+
+    def cmd_merge(self, args):
+        "Merge a chat branch into the current branch"
+        name = args.strip()
+        if not name:
+            self.io.tool_error("Please specify a branch name to merge.")
+            return
+
+        if self.coder.merge_branch(name):
+            self.io.tool_output(f"Merged branch: {name}")
+        else:
+            self.io.tool_error(f"Merge failed for branch: {name}")
+
+    def cmd_summary(self, args):
+        "Summarize the conversation history"
+        self.io.tool_output("Summarizing conversation history...")
+        try:
+            self.coder.done_messages = self.coder.summarizer.summarize_all(
+                self.coder.done_messages + self.coder.cur_messages
+            )
+            self.coder.cur_messages = []
+            self.io.tool_output("Conversation summarized.")
+        except ValueError as e:
+            self.io.tool_error(f"Summarization failed: {e}")
+
     def cmd_tokens(self, args):
         "Report on the number of tokens used by the current chat context"
 
