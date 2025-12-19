@@ -1883,6 +1883,8 @@ Just show me the edits I need to make.
             self.io.tool_error("Cannot manage sessions without a git repository root.")
             return None
         sessions_dir = Path(self.coder.root) / ".aider" / "sessions"
+        # TODO: Make the session directory configurable
+
         sessions_dir.mkdir(parents=True, exist_ok=True)
         return sessions_dir
 
